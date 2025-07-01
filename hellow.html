@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Single File 3D Gun Game</title>
+  <style>
+    body { margin: 0; overflow: hidden; background: #000; }
+    #info {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      color: white;
+      font-family: monospace;
+      z-index: 1;
+    }
+  </style>
+</head>
+<body>
+<div id="info">Click to play | Press 1 or 2 to switch guns</div>
+<script src="https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.155.0/examples/js/controls/PointerLockControls.js"></script>
+<script>
+let camera, scene, renderer, controls;
+let bullets = [];
+let enemies = [];
+let currentGun = 1;
+const clock = new THREE.Clock();
+
+init();
+animate();
+
+function init() {
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x202020);
+
+  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+  renderer = new THREE.WebGLRenderer();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  document.body.appendChild(renderer.domElement);
+
+  controls = new THREE.PointerLockControls(camera, document.body);
+  document.body.addEventListener('click', () => controls.lock());
+  scene.add(controls.getObject());
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+
+  const light = new THREE.DirectionalLight(0xffffff, 0.6);
+  light.position.set(5, 10, 7.5);
+  scene.add(light);
+
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(500, 500),
+    new THREE.MeshStandardMaterial({ color: 0x333333 })
+  );
+  ground.rotation.x = -Math.PI / 2;
+  scene.add(ground);
+
+  spawnEnemies();
+
+  document.addEventListener('mousedown', shoot);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === '1') currentGun = 1;
+    if (e.key === '2') currentGun = 2;
+  });
+}
+
+function shoot() {
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+
+  const bullet = new THREE.Mesh(
+    new THREE.SphereGeometry(0.1),
+    new THREE.MeshBasicMaterial({ color: currentGun === 1 ? 0xffff00 : 0xff0000 })
+  );
+  bullet.position.copy(camera.position);
+  bullets.push({ mesh: bullet, dir: dir.clone().normalize().multiplyScalar(currentGun === 1 ? 50 : 100), life: 2 });
+  scene.add(bullet);
+
+  const audio = new Audio(currentGun === 1 ? 'https://actions.google.com/sounds/v1/alarms/beep_short.ogg' : 'https://actions.google.com/sounds/v1/weapons/pistol.ogg');
+  audio.volume = 0.3;
+  audio.play();
+}
+
+function spawnEnemies() {
+  for (let i = 0; i < 5; i++) {
+    const enemy = new THREE.Mesh(
+      new THREE.BoxGeometry(1, 2, 1),
+      new THREE.MeshStandardMaterial({ color: 0xff3333 })
+    );
+    enemy.position.set(Math.random() * 100 - 50, 1, Math.random() * 100 - 50);
+    scene.add(enemy);
+    enemies.push(enemy);
+  }
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = clock.getDelta();
+
+  bullets.forEach((b, i) => {
+    b.mesh.position.addScaledVector(b.dir, dt);
+    b.life -= dt;
+    if (b.life <= 0) {
+      scene.remove(b.mesh);
+      bullets.splice(i, 1);
+    }
+
+    // check collision with enemies
+    enemies.forEach((e, j) => {
+      if (e && b.mesh.position.distanceTo(e.position) < 1) {
+        scene.remove(e);
+        enemies.splice(j, 1);
+        scene.remove(b.mesh);
+        bullets.splice(i, 1);
+      }
+    });
+  });
+
+  renderer.render(scene, camera);
+}
+</script>
+</body>
+</html>
